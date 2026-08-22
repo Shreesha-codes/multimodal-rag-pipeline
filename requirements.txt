@@ -9,9 +9,11 @@ networkx
 sentence-transformers
 faster-whisper
 pytesseract
+Pillow
 PyMuPDF
 opencv-python
 scenedetect
 google-generativeai
 pytest
 requests
+python-multipart
