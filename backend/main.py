@@ -1,11 +1,12 @@
 from fastapi import FastAPI
-from backend.routes import health, upload
+from backend.routes import health, upload, process
 from backend.config import create_required_directories, check_system_dependencies
 
 app = FastAPI(title="Multimodal RAG API")
 
 app.include_router(health.router)
 app.include_router(upload.router)
+app.include_router(process.router)
 
 @app.on_event("startup")
 def startup_event():
