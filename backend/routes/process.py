@@ -1,6 +1,8 @@
 import os
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from backend.services.ingestion import ingest_file
+from backend.services.ingestion import process_file
+from backend.services.graph import SessionGraph
+from backend.services.relationship_engine import link_temporal, link_entities
 
 router = APIRouter(prefix="", tags=["Process"])
 
@@ -10,19 +12,27 @@ def background_process(session_id: str):
     session_dir = os.path.join("storage", "uploads", session_id)
     if not os.path.exists(session_dir):
         return
-
-    file_results = []
+        
+    all_nodes = []
     for filename in os.listdir(session_dir):
         file_path = os.path.join(session_dir, filename)
         if os.path.isfile(file_path):
-            result = ingest_file(session_id, file_path)
-            file_results.append(result)
+            nodes = process_file(file_path, session_id)
+            all_nodes.extend(nodes)
+            
+    graph = SessionGraph(session_id)
+    for node in all_nodes:
+        graph.add_node(node)
+        
+    link_temporal(graph, all_nodes)
+    link_entities(graph, all_nodes)
+    
+    graph.save()
 
     _session_results[session_id] = {
         "session_id": session_id,
         "status": "complete",
-        "files": file_results,
-        "total_nodes": sum(r["node_count"] for r in file_results),
+        "total_nodes": len(all_nodes),
     }
 
 @router.post("/process/{session_id}")

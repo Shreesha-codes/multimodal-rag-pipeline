@@ -14,3 +14,8 @@ class MultimodalNode(BaseModel):
     page_number: Optional[int] = None
     provenance: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    ocr_text: Optional[str] = None
+    visual_summary: Optional[str] = None
+    entities: Optional[list] = None
+    diagram_present: Optional[bool] = None
+    visual_relationships: Optional[str] = None

@@ -25,6 +25,7 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
         try:
             frames = extract_frames(file_path, session_id)
             for timestamp, frame_path in frames:
+                vision_data = process_image(frame_path)
                 nodes.append(MultimodalNode(
                     id=uuid.uuid4().hex,
                     session_id=session_id,
@@ -33,7 +34,11 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
                     timestamp=timestamp,
                     media_path=frame_path,
                     provenance=f"video_frame:{os.path.basename(file_path)}:{timestamp:.2f}",
-                    metadata={"frame_path": frame_path},
+                    ocr_text=vision_data.get("ocr_text"),
+                    visual_summary=vision_data.get("visual_summary"),
+                    entities=vision_data.get("entities"),
+                    diagram_present=vision_data.get("diagram_present"),
+                    visual_relationships=vision_data.get("visual_relationships")
                 ))
         except Exception as e:
             errors.append(f"frame_extraction: {str(e)}")
@@ -57,8 +62,20 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
     elif ext in IMAGE_EXTENSIONS:
         pipeline = "image"
         try:
-            image_nodes = process_image(file_path, session_id)
-            nodes.extend(image_nodes)
+            vision_data = process_image(file_path)
+            nodes.append(MultimodalNode(
+                id=uuid.uuid4().hex,
+                session_id=session_id,
+                source_file=file_path,
+                modality="image",
+                timestamp=0.0,
+                media_path=file_path,
+                ocr_text=vision_data.get("ocr_text"),
+                visual_summary=vision_data.get("visual_summary"),
+                entities=vision_data.get("entities"),
+                diagram_present=vision_data.get("diagram_present"),
+                visual_relationships=vision_data.get("visual_relationships")
+            ))
         except Exception as e:
             errors.append(f"image_processing: {str(e)}")
 
