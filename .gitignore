@@ -1,41 +1,12 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual environments
 venv/
-.venv/
-env/
-
-# Environment variables (keep .env.example, ignore real .env)
 .env
-
-# ChromaDB persistent data
+__pycache__/
+*.pyc
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/processed/*
+!storage/processed/.gitkeep
+storage/sessions/*
+!storage/sessions/.gitkeep
 chroma_db/
-
-# Processed media (large, regenerable)
-data/processed/
-
-# Graph JSON (regenerable)
-graph/evidence_graph.json
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# IDE
-.vscode/
-.idea/
-*.suo
-*.user
-
-# OS
-.DS_Store
-Thumbs.db
+graph/
