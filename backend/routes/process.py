@@ -32,6 +32,7 @@ def background_process(session_id: str):
     
     vector_store = VectorStore()
     vector_store.add_nodes(all_nodes)
+    vector_store.add_baseline_nodes(all_nodes)
 
     _session_results[session_id] = {
         "session_id": session_id,

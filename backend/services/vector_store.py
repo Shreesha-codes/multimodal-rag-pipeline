@@ -20,6 +20,11 @@ class VectorStore:
             embedding_function=self.text_embedding_fn
         )
         
+        self.baseline_collection = self.client.get_or_create_collection(
+            name="baseline_collection",
+            embedding_function=self.text_embedding_fn
+        )
+        
     def _assemble_text(self, node: MultimodalNode) -> str:
         parts = []
         if node.text:
@@ -107,3 +112,62 @@ class VectorStore:
         self.text_collection.delete(
             where={"session_id": session_id}
         )
+        self.baseline_collection.delete(
+            where={"session_id": session_id}
+        )
+        
+    def add_baseline_nodes(self, nodes: List[MultimodalNode]):
+        ids = []
+        documents = []
+        metadatas = []
+        
+        for node in nodes:
+            # For baseline, only use direct text (no OCR, no visual summary if they want pure text, but instructions say "transcript, OCR, PDF text, TXT")
+            parts = []
+            if node.text:
+                parts.append(node.text)
+            if node.ocr_text:
+                parts.append(node.ocr_text)
+                
+            text_content = " ".join(parts).strip()
+            
+            if text_content:
+                ids.append(f"baseline_{node.id}")
+                documents.append(text_content)
+                
+                metadata = {
+                    "node_id": node.id,
+                    "session_id": node.session_id,
+                    "modality": node.modality,
+                    "source_file": node.source_file,
+                }
+                metadatas.append(metadata)
+                
+        if ids:
+            self.baseline_collection.add(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas
+            )
+            
+    def query_baseline(self, query: str, session_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        results = self.baseline_collection.query(
+            query_texts=[query],
+            n_results=top_k,
+            where={"session_id": session_id}
+        )
+        
+        nodes = []
+        if not results["ids"]:
+            return nodes
+            
+        for i in range(len(results["ids"][0])):
+            node = {
+                "id": results["metadatas"][0][i]["node_id"],
+                "document": results["documents"][0][i],
+                "metadata": results["metadatas"][0][i],
+                "distance": results["distances"][0][i] if "distances" in results else None
+            }
+            nodes.append(node)
+            
+        return nodes

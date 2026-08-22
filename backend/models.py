@@ -42,3 +42,16 @@ class FinalResponse(BaseModel):
     citations: List[Dict[str, Any]]
     confidence: str
     evidence_bundle: EvidenceBundle
+
+class ComparisonMetrics(BaseModel):
+    baseline_modality_coverage: List[str]
+    multimodal_modality_coverage: List[str]
+    baseline_source_coverage: int
+    multimodal_source_coverage: int
+
+class ComparisonResult(BaseModel):
+    query: str
+    session_id: str
+    baseline: FinalResponse
+    multimodal: FinalResponse
+    metrics: ComparisonMetrics
