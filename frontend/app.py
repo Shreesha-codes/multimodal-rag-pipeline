@@ -1,128 +1,165 @@
-import time
 import streamlit as st
+import uuid
+import time
 import requests
+import os
 
-BASE_URL = "http://localhost:8000"
+st.set_page_config(page_title="Multimodal RAG", layout="wide")
 
-st.set_page_config(page_title="Multimodal RAG Pipeline", layout="wide")
+API_BASE = "http://127.0.0.1:8000"
 
-st.markdown("""
-<style>
-    .block-container { padding-top: 2rem; }
-    .node-card { background: #1e1e2e; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; border-left: 3px solid #7c3aed; }
-    .pipeline-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-    .badge-video { background: #7c3aed22; color: #a78bfa; }
-    .badge-audio { background: #059669 22; color: #6ee7b7; }
-    .badge-image { background: #db277722; color: #f9a8d4; }
-    .badge-pdf   { background: #d9770622; color: #fcd34d; }
-    .badge-text  { background: #0284c722; color: #7dd3fc; }
-</style>
-""", unsafe_allow_html=True)
+if "session_id" not in st.session_state:
+    st.session_state.session_id = f"session_{uuid.uuid4().hex[:8]}"
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = []
 
-st.title("🧠 Multimodal RAG Pipeline")
-st.write("Upload files from any modality — video, audio, image, PDF, or plain text — and process them into structured nodes.")
+session_id = st.session_state.session_id
 
-SUPPORTED = ["mp4", "mov", "mp3", "wav", "png", "jpg", "jpeg", "pdf", "txt"]
-uploaded_files = st.file_uploader(
-    "Select files (MP4, MOV, MP3, WAV, PNG, JPG, JPEG, PDF, TXT)",
-    accept_multiple_files=True,
-    type=SUPPORTED,
-)
+st.title("Multimodal RAG")
+st.markdown("Ask questions across video, audio, images and documents with source-aware evidence.")
 
-MODALITY_ICONS = {
-    "video": "🎬",
-    "audio": "🎵",
-    "image": "🖼️",
-    "pdf": "📄",
-    "text": "📝",
-    "unknown": "❓",
-}
+st.header("Upload Knowledge")
+uploaded_files = st.file_uploader("Upload Files", accept_multiple_files=True)
 
-if uploaded_files:
-    st.markdown("### 📁 Selected Files")
-    for f in uploaded_files:
-        st.write(f"- **{f.name}** — {f.size / 1024:.1f} KB")
-
-    if st.button("⬆️ Upload & Process", type="primary"):
-        files = [("files", (f.name, f.getvalue(), f.type or "application/octet-stream")) for f in uploaded_files]
-
-        session_id = None
-        with st.spinner("Uploading files…"):
-            try:
-                resp = requests.post(f"{BASE_URL}/upload", files=files, timeout=120)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    session_id = data["session_id"]
-                    st.success(f"✅ Upload successful — Session: `{session_id}`")
-                else:
-                    st.error(f"Upload failed: {resp.json().get('detail', resp.text)}")
-            except requests.exceptions.ConnectionError:
-                st.error("❌ Backend is not reachable on port 8000. Please start it first.")
-
-        if session_id:
-            with st.spinner("Processing…"):
-                try:
-                    proc_resp = requests.post(f"{BASE_URL}/process/{session_id}", timeout=30)
-                    if proc_resp.status_code != 200:
-                        st.error(f"Failed to start processing: {proc_resp.text}")
-                        st.stop()
-                except requests.exceptions.ConnectionError:
-                    st.error("❌ Backend connection lost during processing trigger.")
+if st.button("Process Files"):
+    if not uploaded_files:
+        st.warning("Please upload at least one file.")
+    else:
+        try:
+            # 1. Upload files
+            with st.spinner("Uploading files..."):
+                files_payload = []
+                for f in uploaded_files:
+                    files_payload.append(("files", (f.name, f.getvalue(), f.type)))
+                    if f.name not in st.session_state.uploaded_files:
+                        st.session_state.uploaded_files.append(f.name)
+                        
+                upload_res = requests.post(f"{API_BASE}/upload/{session_id}", files=files_payload)
+                if upload_res.status_code != 200:
+                    st.error(f"Upload failed: {upload_res.text}")
                     st.stop()
+                    
+            # 2. Trigger processing
+            process_res = requests.post(f"{API_BASE}/process/{session_id}")
+            if process_res.status_code != 202:
+                st.error(f"Failed to start processing: {process_res.text}")
+                st.stop()
+                
+            # 3. Poll status
+            status_container = st.empty()
+            while True:
+                status_res = requests.get(f"{API_BASE}/status/{session_id}")
+                if status_res.status_code == 200:
+                    data = status_res.json()
+                    status = data.get("status", "unknown")
+                    
+                    with status_container.container():
+                        st.write(f"**Session Status:** {status}")
+                        for fname, fstatus in data.get("files", {}).items():
+                            st.write(f"- **{fname}**: {fstatus}")
+                            
+                    if status in ["completed", "failed"]:
+                        if status == "completed":
+                            st.success("Processing completed successfully!")
+                        else:
+                            st.error("Processing failed for some files.")
+                        break
+                else:
+                    st.error("Could not fetch status.")
+                    break
+                time.sleep(2)
+        except requests.exceptions.ConnectionError:
+            st.error("Backend is not running. Please start the Uvicorn server.")
 
-                results = None
-                for _ in range(120):
-                    time.sleep(2)
-                    try:
-                        r = requests.get(f"{BASE_URL}/process/results/{session_id}", timeout=10)
-                        if r.status_code == 200:
-                            data = r.json()
-                            if data.get("status") == "complete":
-                                results = data
-                                break
-                    except Exception:
-                        pass
+st.header("Analyze Knowledge")
+tab1, tab2, tab3 = st.tabs(["Query & Evidence", "Baseline Comparison", "Relationship Graph"])
 
-            if results:
-                st.markdown("---")
-                st.markdown("### 🔍 Processing Results")
+def render_evidence(bundle):
+    for item in bundle.get("evidence", []):
+        with st.expander(f"{item.get('modality', 'unknown').upper()} - {item.get('source_file', 'unknown')}"):
+            st.write(f"**Node ID:** {item.get('node_id')}")
+            if item.get("timestamp"):
+                st.write(f"**Timestamp:** {item.get('timestamp')}s")
+            if item.get("page"):
+                st.write(f"**Page:** {item.get('page')}")
+            if item.get("text_content"):
+                st.write(f"**Text/Description:** {item.get('text_content')}")
+            
+            media_path = item.get("media_path")
+            if media_path and os.path.exists(media_path):
+                st.image(media_path, caption=f"Source: {item.get('source_file')}")
 
-                total_nodes = results.get("total_nodes", 0)
-                file_results = results.get("files", [])
-                st.metric("Total Nodes Extracted", total_nodes)
+with tab1:
+    query = st.text_input("Ask a question about your uploaded knowledge:")
+    if st.button("Ask"):
+        if not query:
+            st.warning("Please enter a question.")
+        else:
+            with st.spinner("Analyzing cross-modal evidence..."):
+                try:
+                    res = requests.get(f"{API_BASE}/query/{session_id}", params={"q": query})
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.subheader("Answer")
+                        st.write(data.get("answer", ""))
+                        
+                        st.subheader("Cited Evidence")
+                        bundle = data.get("evidence_bundle", {})
+                        
+                        if bundle.get("evidence"):
+                            render_evidence(bundle)
+                            
+                        # Save bundle for relationship view
+                        st.session_state.last_bundle = bundle
+                    else:
+                        st.error(f"Error querying backend: {res.text}")
+                except requests.exceptions.ConnectionError:
+                    st.error("Backend is not running.")
 
-                for file_result in file_results:
-                    pipeline = file_result.get("pipeline", "unknown")
-                    icon = MODALITY_ICONS.get(pipeline, "❓")
-                    fname = file_result.get("file_path", "").split("/")[-1].split("\\")[-1]
-                    node_count = file_result.get("node_count", 0)
-                    errors = file_result.get("errors", [])
+with tab2:
+    compare_query = st.text_input("Run comparison query:")
+    if st.button("Compare"):
+        if not compare_query:
+            st.warning("Please enter a question.")
+        else:
+            with st.spinner("Running baseline and multimodal engines..."):
+                try:
+                    res = requests.get(f"{API_BASE}/compare/{session_id}", params={"q": compare_query})
+                    if res.status_code == 200:
+                        data = res.json()
+                        col1, col2 = st.columns(2)
+                        
+                        metrics = data.get("metrics", {})
+                        
+                        with col1:
+                            st.subheader("Text-Only Baseline")
+                            st.write(data["baseline"].get("answer", ""))
+                            st.write("**Modality Coverage:**", ", ".join(metrics.get("baseline_modality_coverage", [])))
+                            
+                            st.subheader("Baseline Evidence")
+                            render_evidence(data["baseline"].get("evidence_bundle", {}))
+                            
+                        with col2:
+                            st.subheader("Multimodal RAG")
+                            st.write(data["multimodal"].get("answer", ""))
+                            st.write("**Modality Coverage:**", ", ".join(metrics.get("multimodal_modality_coverage", [])))
+                            
+                            st.subheader("Multimodal Evidence")
+                            render_evidence(data["multimodal"].get("evidence_bundle", {}))
+                            
+                    else:
+                        st.error(f"Error comparing backend: {res.text}")
+                except requests.exceptions.ConnectionError:
+                    st.error("Backend is not running.")
 
-                    with st.expander(f"{icon} **{fname}** — `{pipeline}` pipeline — {node_count} nodes", expanded=True):
-                        if errors:
-                            for err in errors:
-                                st.warning(f"⚠️ {err}")
-
-                        nodes = file_result.get("nodes", [])
-                        for node in nodes[:10]:
-                            modality = node.get("modality", "")
-                            text = node.get("text") or ""
-                            media = node.get("media_path") or ""
-                            page = node.get("page_number")
-                            prov = node.get("provenance", "")
-
-                            label = f"`{modality}`"
-                            if page:
-                                label += f" · page {page}"
-                            if text:
-                                preview = text[:200].replace("\n", " ")
-                                st.markdown(f"**{label}** — {preview}{'…' if len(text) > 200 else ''}")
-                            elif media:
-                                st.markdown(f"**{label}** — `{media}`")
-                            else:
-                                st.markdown(f"**{label}** — *(no text or media)*")
-
-                        if len(nodes) > 10:
-                            st.caption(f"…and {len(nodes) - 10} more nodes not shown.")
-            else:
-                st.warning("⏳ Processing is taking longer than expected. Check the backend logs.")
+with tab3:
+    st.subheader("Evidence Relationship Chain")
+    if "last_bundle" in st.session_state:
+        bundle = st.session_state.last_bundle
+        evidence_list = bundle.get("evidence", [])
+        
+        for item in evidence_list:
+            if not item.get("is_primary") and item.get("relationship_path"):
+                st.markdown(f"**Primary Match** ➔ `{item.get('relationship_path')}` ➔ **{item.get('modality').upper()}** ({item.get('source_file')})")
+    else:
+        st.info("Run a query in the first tab to view relationships.")
