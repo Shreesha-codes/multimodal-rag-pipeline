@@ -36,3 +36,9 @@ class EvidenceBundle(BaseModel):
     query: str
     session_id: str
     evidence: List[EvidenceItem]
+
+class FinalResponse(BaseModel):
+    answer: str
+    citations: List[Dict[str, Any]]
+    confidence: str
+    evidence_bundle: EvidenceBundle
