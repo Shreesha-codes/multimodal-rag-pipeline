@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from backend.services.ingestion import process_file
 from backend.services.graph import SessionGraph
 from backend.services.relationship_engine import link_temporal, link_entities
+from backend.services.vector_store import VectorStore
 
 router = APIRouter(prefix="", tags=["Process"])
 
@@ -28,6 +29,9 @@ def background_process(session_id: str):
     link_entities(graph, all_nodes)
     
     graph.save()
+    
+    vector_store = VectorStore()
+    vector_store.add_nodes(all_nodes)
 
     _session_results[session_id] = {
         "session_id": session_id,
