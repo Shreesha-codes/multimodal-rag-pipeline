@@ -1,29 +1,14 @@
-# ── Core framework ────────────────────────────────────────────────────────────
-streamlit>=1.35.0
-
-# ── Google AI (embeddings + Gemini LLM) ───────────────────────────────────────
-google-generativeai>=0.7.0
-
-# ── Vector store ──────────────────────────────────────────────────────────────
-chromadb>=0.5.0
-
-# ── Knowledge graph ───────────────────────────────────────────────────────────
-networkx>=3.3
-
-# ── Data models & validation ──────────────────────────────────────────────────
-pydantic>=2.7.0
-
-# ── PDF extraction ────────────────────────────────────────────────────────────
-PyMuPDF>=1.24.0          # fitz — PDF text + image extraction
-
-# ── Video / audio ─────────────────────────────────────────────────────────────
-opencv-python>=4.10.0    # cv2 — frame extraction
-moviepy>=1.0.3           # audio extraction from video
-openai-whisper>=20231117 # ASR transcription
-
-# ── Environment ───────────────────────────────────────────────────────────────
-python-dotenv>=1.0.0
-
-# ── Utilities ─────────────────────────────────────────────────────────────────
-Pillow>=10.3.0           # image I/O helpers
-tqdm>=4.66.0             # progress bars
+fastapi
+uvicorn
+streamlit
+python-dotenv
+pydantic
+chromadb
+networkx
+sentence-transformers
+faster-whisper
+pytesseract
+PyMuPDF
+opencv-python
+scenedetect
+google-generativeai
