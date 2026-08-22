@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
 
 class MultimodalNode(BaseModel):
@@ -19,3 +19,20 @@ class MultimodalNode(BaseModel):
     entities: Optional[list] = None
     diagram_present: Optional[bool] = None
     visual_relationships: Optional[str] = None
+
+class EvidenceItem(BaseModel):
+    node_id: str
+    modality: str
+    score: float
+    source_file: str
+    media_path: Optional[str] = None
+    timestamp: Optional[float] = None
+    page: Optional[int] = None
+    text_content: Optional[str] = None
+    relationship_path: Optional[str] = None
+    is_primary: bool = True
+
+class EvidenceBundle(BaseModel):
+    query: str
+    session_id: str
+    evidence: List[EvidenceItem]
