@@ -3,6 +3,7 @@ uvicorn
 streamlit
 python-dotenv
 pydantic
+pydantic-settings
 chromadb
 networkx
 sentence-transformers
@@ -12,3 +13,5 @@ PyMuPDF
 opencv-python
 scenedetect
 google-generativeai
+pytest
+requests
