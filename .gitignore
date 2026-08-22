@@ -2,6 +2,7 @@ venv/
 .env
 __pycache__/
 *.pyc
+.pytest_cache/
 storage/uploads/*
 !storage/uploads/.gitkeep
 storage/processed/*
@@ -10,3 +11,10 @@ storage/sessions/*
 !storage/sessions/.gitkeep
 chroma_db/
 graph/
+*.mp4
+*.mp3
+*.wav
+*.png
+*.jpg
+*.jpeg
+*.pdf
