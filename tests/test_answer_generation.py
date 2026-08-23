@@ -3,10 +3,8 @@ from backend.models import EvidenceBundle, EvidenceItem
 from backend.services.answer_generator import generate_answer
 
 def test_citation_validation(monkeypatch):
-    # Mock settings to have an API key so we bypass the missing key check
     monkeypatch.setattr("backend.config.settings.google_api_key", "mock_key")
     
-    # Mock genai generative model to return a controlled JSON response
     class MockResponse:
         text = '''
         {
@@ -16,12 +14,15 @@ def test_citation_validation(monkeypatch):
         }
         '''
         
-    class MockModel:
-        def generate_content(self, prompt):
+    class MockModels:
+        def generate_content(self, model, contents):
             return MockResponse()
+
+    class MockClient:
+        def __init__(self, api_key=None):
+            self.models = MockModels()
             
-    monkeypatch.setattr("google.generativeai.GenerativeModel", lambda *args, **kwargs: MockModel())
-    monkeypatch.setattr("google.generativeai.configure", lambda *args, **kwargs: None)
+    monkeypatch.setattr("google.genai.Client", MockClient)
     
     bundle = EvidenceBundle(
         query="What is sharding?",
@@ -40,11 +41,8 @@ def test_citation_validation(monkeypatch):
     final_response = generate_answer("What is sharding?", bundle)
     
     assert final_response.answer == "Database sharding splits data."
-    
-    # The hallucinated_node_999 MUST be stripped out because it's not in evidence_map
     assert len(final_response.citations) == 1
     
-    # The citation metadata MUST be derived from the EvidenceBundle, not the LLM
     citation = final_response.citations[0]
     assert citation["node_id"] == "valid_node_1"
     assert citation["modality"] == "audio"

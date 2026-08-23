@@ -1,5 +1,5 @@
 import json
-import google.generativeai as genai
+from google import genai
 from typing import List, Dict, Any
 from backend.models import EvidenceBundle, FinalResponse
 from backend.config import settings
@@ -56,9 +56,11 @@ def generate_answer(query: str, bundle: EvidenceBundle) -> FinalResponse:
     """
     
     try:
-        genai.configure(api_key=settings.google_api_key)
-        model = genai.GenerativeModel("gemini-1.5-pro-latest")
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=settings.google_api_key)
+        response = client.models.generate_content(
+            model="gemini-1.5-pro",
+            contents=prompt
+        )
         
         if not response or not response.text:
             raise ValueError("Empty response from model")

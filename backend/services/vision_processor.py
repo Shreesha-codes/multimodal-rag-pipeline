@@ -4,7 +4,7 @@ import hashlib
 from typing import Dict, Any, Optional
 import pytesseract
 from PIL import Image
-import google.generativeai as genai
+from google import genai
 from backend.config import settings
 
 _PROCESSED_HASHES = {}
@@ -24,8 +24,7 @@ def extract_vision_metadata(image: Image.Image) -> Dict[str, Any]:
         return {}
         
     try:
-        genai.configure(api_key=settings.google_api_key)
-        model = genai.GenerativeModel("gemini-1.5-pro-latest")
+        client = genai.Client(api_key=settings.google_api_key)
         
         prompt = (
             "Analyze this image and return a strict JSON object with these exact keys: "
@@ -37,7 +36,10 @@ def extract_vision_metadata(image: Image.Image) -> Dict[str, Any]:
             "Do not include any formatting, markdown, or other text outside the JSON."
         )
         
-        response = model.generate_content([prompt, image])
+        response = client.models.generate_content(
+            model="gemini-1.5-pro",
+            contents=[prompt, image]
+        )
         
         if not response or not response.text:
             return {}

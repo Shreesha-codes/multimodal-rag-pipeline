@@ -1,84 +1,140 @@
-# Multimodal RAG Pipeline
+# Relationship-Aware Multimodal Graph-RAG Pipeline
 
-This repository contains a Multimodal Retrieval-Augmented Generation (RAG) Pipeline, featuring a FastAPI backend and a Streamlit frontend. It supports uploading, managing, and eventually processing various media and document formats including videos, audio files, images, and text documents.
+A production-grade, source-grounded Multimodal RAG system that ingests **Video, Audio, Images, PDFs, and Text**, extracts structured nodes across modalities, builds cross-modal temporal and entity relationship graphs, and performs relationship-aware retrieval to answer complex queries with verifiable provenance.
 
-## Supported Formats
-- **Video**: MP4, MOV
-- **Audio**: MP3, WAV
-- **Image**: PNG, JPG, JPEG
-- **Document**: PDF, TXT
+---
+
+## Key Features
+
+1. **True Multimodal Ingestion**
+   - **Video:** Extract audio with FFmpeg, detect scene changes with PySceneDetect, run OCR with Tesseract, and analyze key visual frames with Gemini Vision.
+   - **Audio:** Transcribe speech with timestamps using `faster-whisper`.
+   - **PDF & Images:** Extract text with PyMuPDF, run OCR, and extract visual concepts.
+   - **Text:** Direct semantic chunking.
+
+2. **Cross-Modal Relationship Graph (NetworkX)**
+   - Automatically builds directional edges between modalities:
+     - `VISIBLE_DURING`: Connects audio spoken segments to key video frames appearing at the same timestamp (`t_audio - 2s <= t_frame <= t_audio + 2s`).
+     - `RELATED_TO`: Connects nodes sharing visual or textual entities across PDFs, Images, and Video frames.
+
+3. **Relationship-Aware Graph Expansion**
+   - Combines vector search in ChromaDB with NetworkX graph expansion.
+   - When vector search hits an audio transcript, graph expansion traverses `VISIBLE_DURING` edges to retrieve the exact frame shown on screen during that segment.
+
+4. **Verifiable Backend Provenance**
+   - Discards LLM-invented citations and enforces backend metadata (node ID, source filename, timestamp, page number, media path).
+
+5. **Text-Only Baseline RAG Comparison**
+   - Includes an isolated text-only vector collection for head-to-head comparison demonstrating evidence recovered by Multimodal Graph-RAG that standard RAG loses.
+
+6. **Interactive 2D Knowledge Graph UI**
+   - Built with Streamlit and `vis-network` JS HTML components for interactive node dragging and zoom.
+
+---
+
+## Project Structure
+
+```
+multimodal-rag-pipeline/
+├── backend/
+│   ├── main.py                # FastAPI entrypoint with lifespan context
+│   ├── models.py              # MultimodalNode & Evidence schemas
+│   ├── config.py              # Configuration & dependency check
+│   ├── routes/                # Health, Upload, Process, Query, Compare APIs
+│   └── services/              # Modality processors, Graph, VectorStore, Gemini
+├── frontend/
+│   ├── app.py                 # Streamlit main workspace
+│   └── components/            # Evidence cards, Comparison, Interactive Graph
+├── storage/                   # Session uploads & processed frames (gitignored)
+├── chroma_db/                 # Persistent ChromaDB collections (gitignored)
+├── graph/                     # Persisted NetworkX graphs (gitignored)
+├── test_data/                 # Committed reproducible demo dataset
+│   ├── README.md              # Test dataset documentation
+│   ├── video/
+│   ├── audio/
+│   ├── images/
+│   ├── documents/
+│   └── text/
+├── scripts/
+│   ├── build_test_dataset.py  # Test dataset generator
+│   └── validate_demo.py       # Automated E2E demo validator
+├── tests/                     # Pytest suite (8 unit tests + E2E)
+├── docs/
+│   └── architecture.md        # Detailed system architecture document
+├── requirements.txt
+├── .env.example
+├── .gitignore
+└── README.md
+```
+
+---
 
 ## Prerequisites
 
-Before running the application, you must install the following system dependencies:
-1. **Python**: Python 3.9+ is recommended.
-2. **FFmpeg**: Required for video and audio processing. Ensure the `ffmpeg` executable is added to your system's `PATH`.
-3. **Tesseract OCR**: Required for extracting text from images. Ensure the `tesseract` executable is added to your system's `PATH`.
-4. **Google Gemini API Key**: Set your API key in the environment file for generative capabilities.
+1. **System Dependencies:**
+   - **Python 3.10+**
+   - **FFmpeg** (Ensure `ffmpeg` is in your system PATH)
+   - **Tesseract OCR** (Ensure `tesseract` is installed)
 
-## Setup Instructions
+2. **Environment Setup:**
+   Copy `.env.example` to `.env` and provide your Google Gemini API key:
+   ```bash
+   GOOGLE_API_KEY="your-gemini-api-key"
+   ```
 
-Follow these steps to set up the project locally.
+---
 
-### 1. Clone the repository
-Navigate to your desired folder and clone the repository (or extract the project files).
+## Installation & Setup
 
-### 2. Create and Activate a Virtual Environment
-It is highly recommended to install the dependencies in an isolated virtual environment (`venv`).
+1. **Activate Virtual Environment & Install Dependencies:**
+   ```powershell
+   .\venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
 
-**For Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+2. **Generate Test Dataset (Optional):**
+   ```powershell
+   python scripts/build_test_dataset.py
+   ```
 
-**For Windows (Command Prompt):**
-```cmd
-python -m venv venv
-.\venv\Scripts\activate.bat
-```
-
-**For macOS/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-With the virtual environment activated, install the required Python packages using `pip`:
-
-```bash
-pip install -r requirements.txt
-```
-
-*(Note: Depending on your Python version, some packages that require C++ build tools (like `pydantic-core` or `pandas`) may require Visual Studio Build Tools to be installed on Windows if pre-built binaries are not available).*
-
-### 4. Configure Environment Variables
-1. Rename the `.env.example` file to `.env`.
-2. Add your required API keys to the `.env` file:
-```env
-GOOGLE_API_KEY=your_google_gemini_api_key_here
-```
+---
 
 ## Running the Application
 
-You need to start both the backend server and the frontend UI. It is recommended to run them in two separate terminal windows with the virtual environment activated in both.
-
-### Start the Backend (FastAPI)
-```bash
-uvicorn backend.main:app --reload
+### 1. Start FastAPI Backend
+```powershell
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
-The backend API will be available at `http://localhost:8000`.
-You can view the interactive API documentation at `http://localhost:8000/docs`.
 
-### Start the Frontend (Streamlit)
-```bash
+### 2. Start Streamlit Frontend
+```powershell
 streamlit run frontend/app.py
 ```
-The frontend UI will automatically open in your default web browser (typically at `http://localhost:8501`).
 
-## Architecture
+Open browser to `http://localhost:8501`.
 
-- **Frontend**: A Streamlit interface for seamless user interaction, batch file uploads, and session tracking.
-- **Backend**: A FastAPI REST API handling chunked file streaming, session creation, and metadata generation.
-- **Storage**: Media files are stored safely on disk in session-specific directories (`storage/uploads/<session_id>/`) rather than in a database.
+---
+
+## Demo Questions & Expected Evidence
+
+| # | Demo Question | Expected Retrieved Evidence |
+| :- | :--- | :--- |
+| **1** | *"What was discussed about database sharding and what was shown on screen?"* | Audio transcript (`architecture_audio.mp3`), Video Frame (`architecture_meeting.mp4`), PDF (`architecture.pdf`). |
+| **2** | *"What architecture diagram was being explained when Redis was mentioned?"* | Video Frame (`architecture_meeting.mp4`), Image Diagram (`architecture_diagram.png`). |
+| **3** | *"What does the PDF say about the architecture shown in the video?"* | Video Frame (`architecture_meeting.mp4`), PDF Page 1 (`architecture.pdf`). |
+| **4** | *"What did the speaker say about Kubernetes cluster setup?"* | Anti-hallucination check (Returns no false evidence, safely indicating ungrounded request). |
+
+---
+
+## Automated Validation & Testing
+
+Run the automated end-to-end demo validation script:
+```powershell
+$env:PYTHONPATH="."
+python scripts/validate_demo.py
+```
+
+Run unit tests:
+```powershell
+pytest tests/ -v
+```

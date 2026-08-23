@@ -1,17 +1,10 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from backend.routes import health, upload, process, query, compare
 from backend.config import create_required_directories, check_system_dependencies
 
-app = FastAPI(title="Multimodal RAG API")
-
-app.include_router(health.router)
-app.include_router(upload.router)
-app.include_router(process.router)
-app.include_router(query.router)
-app.include_router(compare.router)
-
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     create_required_directories()
     deps = check_system_dependencies()
     print(f"System Dependencies Status: {deps}")
@@ -21,3 +14,12 @@ def startup_event():
         print("WARNING: FFmpeg is not installed. Video/audio processing will fail.")
     if not deps.get("tesseract"):
         print("WARNING: Tesseract is not installed. OCR processing will fail.")
+    yield
+
+app = FastAPI(title="Multimodal RAG API", lifespan=lifespan)
+
+app.include_router(health.router)
+app.include_router(upload.router)
+app.include_router(process.router)
+app.include_router(query.router)
+app.include_router(compare.router)

@@ -25,21 +25,11 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
         try:
             frames = extract_frames(file_path, session_id)
             for timestamp, frame_path in frames:
-                vision_data = process_image(frame_path)
-                nodes.append(MultimodalNode(
-                    id=uuid.uuid4().hex,
-                    session_id=session_id,
-                    source_file=file_path,
-                    modality="video_frame",
-                    timestamp=timestamp,
-                    media_path=frame_path,
-                    provenance=f"video_frame:{os.path.basename(file_path)}:{timestamp:.2f}",
-                    ocr_text=vision_data.get("ocr_text"),
-                    visual_summary=vision_data.get("visual_summary"),
-                    entities=vision_data.get("entities"),
-                    diagram_present=vision_data.get("diagram_present"),
-                    visual_relationships=vision_data.get("visual_relationships")
-                ))
+                img_nodes = process_image(frame_path, session_id)
+                for inode in img_nodes:
+                    inode.modality = "video_frame"
+                    inode.timestamp = timestamp
+                    nodes.append(inode)
         except Exception as e:
             errors.append(f"frame_extraction: {str(e)}")
 
@@ -62,20 +52,8 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
     elif ext in IMAGE_EXTENSIONS:
         pipeline = "image"
         try:
-            vision_data = process_image(file_path)
-            nodes.append(MultimodalNode(
-                id=uuid.uuid4().hex,
-                session_id=session_id,
-                source_file=file_path,
-                modality="image",
-                timestamp=0.0,
-                media_path=file_path,
-                ocr_text=vision_data.get("ocr_text"),
-                visual_summary=vision_data.get("visual_summary"),
-                entities=vision_data.get("entities"),
-                diagram_present=vision_data.get("diagram_present"),
-                visual_relationships=vision_data.get("visual_relationships")
-            ))
+            img_nodes = process_image(file_path, session_id)
+            nodes.extend(img_nodes)
         except Exception as e:
             errors.append(f"image_processing: {str(e)}")
 
@@ -103,7 +81,6 @@ def ingest_file(session_id: str, file_path: str) -> Dict[str, Any]:
         "nodes": [n.model_dump() for n in nodes],
         "errors": errors,
     }
-
 
 def process_file(file_path: str, session_id: str) -> List[MultimodalNode]:
     result = ingest_file(session_id, file_path)
