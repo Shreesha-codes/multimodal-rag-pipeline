@@ -8,7 +8,6 @@ def test_imports():
         import dotenv
         import pydantic
         
-        # Add current directory to path so we can import our modules
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         
         import backend.main

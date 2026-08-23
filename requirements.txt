@@ -13,7 +13,7 @@ Pillow
 PyMuPDF
 opencv-python
 scenedetect
-google-generativeai
+google-genai
 pytest
 requests
 python-multipart

@@ -1,29 +1,55 @@
 import os
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from backend.services.ingestion import ingest_file
+from backend.services.ingestion import process_file
+from backend.services.graph import SessionGraph
+from backend.services.relationship_engine import link_temporal, link_entities
+from backend.services.vector_store import VectorStore
 
 router = APIRouter(prefix="", tags=["Process"])
 
 _session_results: dict = {}
 
+def get_session_result(session_id: str) -> dict:
+    return _session_results.get(session_id, {})
+
 def background_process(session_id: str):
     session_dir = os.path.join("storage", "uploads", session_id)
     if not os.path.exists(session_dir):
+        _session_results[session_id] = {"session_id": session_id, "status": "failed", "error": "Session directory not found"}
         return
+        
+    try:
+        all_nodes = []
+        for filename in os.listdir(session_dir):
+            file_path = os.path.join(session_dir, filename)
+            if os.path.isfile(file_path):
+                nodes = process_file(file_path, session_id)
+                all_nodes.extend(nodes)
+                
+        graph = SessionGraph(session_id)
+        for node in all_nodes:
+            graph.add_node(node)
+            
+        link_temporal(graph, all_nodes)
+        link_entities(graph, all_nodes)
+        
+        graph.save()
+        
+        vector_store = VectorStore()
+        vector_store.add_nodes(all_nodes)
+        vector_store.add_baseline_nodes(all_nodes)
 
-    file_results = []
-    for filename in os.listdir(session_dir):
-        file_path = os.path.join(session_dir, filename)
-        if os.path.isfile(file_path):
-            result = ingest_file(session_id, file_path)
-            file_results.append(result)
-
-    _session_results[session_id] = {
-        "session_id": session_id,
-        "status": "complete",
-        "files": file_results,
-        "total_nodes": sum(r["node_count"] for r in file_results),
-    }
+        _session_results[session_id] = {
+            "session_id": session_id,
+            "status": "completed",
+            "total_nodes": len(all_nodes),
+        }
+    except Exception as e:
+        _session_results[session_id] = {
+            "session_id": session_id,
+            "status": "failed",
+            "error": str(e)
+        }
 
 @router.post("/process/{session_id}")
 async def trigger_processing(session_id: str, background_tasks: BackgroundTasks):

@@ -3,8 +3,9 @@ import uuid
 import shutil
 import mimetypes
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from backend.routes.process import get_session_result
 
 router = APIRouter(prefix="", tags=["Upload"])
 
@@ -16,8 +17,10 @@ SUPPORTED_EXTENSIONS = {
 MAX_FILE_SIZE = 1024 * 1024 * 500
 
 @router.post("/upload")
-async def upload_files(files: List[UploadFile] = File(...)):
-    session_id = f"session_{uuid.uuid4().hex[:8]}"
+@router.post("/upload/{session_id}")
+async def upload_files(files: List[UploadFile] = File(...), session_id: Optional[str] = None):
+    if not session_id:
+        session_id = f"session_{uuid.uuid4().hex[:8]}"
     session_dir = os.path.join("storage", "uploads", session_id)
     os.makedirs(session_dir, exist_ok=True)
     
@@ -80,7 +83,11 @@ async def get_status(session_id: str):
     if not os.path.exists(session_dir):
         raise HTTPException(status_code=404, detail="Session not found")
         
+    proc_info = get_session_result(session_id)
+    current_status = proc_info.get("status", "uploaded")
+    
     files_info = []
+    files_map = {}
     for filename in os.listdir(session_dir):
         file_path = os.path.join(session_dir, filename)
         if os.path.isfile(file_path):
@@ -88,17 +95,26 @@ async def get_status(session_id: str):
             ext = os.path.splitext(filename)[1].lower()
             mime_type, _ = mimetypes.guess_type(filename)
             
-            files_info.append({
+            file_entry = {
                 "session_id": session_id,
                 "original_filename": filename,
                 "mime_type": mime_type,
                 "extension": ext,
                 "file_size": size,
                 "storage_path": file_path,
-                "processing_status": "uploaded"
-            })
+                "processing_status": current_status
+            }
+            files_info.append(file_entry)
+            files_map[filename] = current_status
             
-    return {"session_id": session_id, "status": "active", "files": files_info}
+    return {
+        "session_id": session_id,
+        "status": current_status,
+        "files": files_map,
+        "files_info": files_info,
+        "total_nodes": proc_info.get("total_nodes", 0),
+        "error": proc_info.get("error")
+    }
 
 @router.get("/files/{session_id}")
 async def get_files(session_id: str):

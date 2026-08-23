@@ -1,10 +1,13 @@
 import os
 import shutil
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class Settings:
     def __init__(self):
-        self.google_api_key: Optional[str] = os.environ.get("GOOGLE_API_KEY")
+        self.google_api_key: Optional[str] = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 settings = Settings()
 
